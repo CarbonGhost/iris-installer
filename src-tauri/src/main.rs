@@ -15,7 +15,7 @@ use std::{
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+use serde_json::{json, Map, Value};
 use structs::{Meta, ModrinthApi, Version};
 use tauri::{Manager, State};
 use window_shadows::set_shadow;
@@ -286,9 +286,31 @@ async fn download_quilt(
         todo!()
     };
 
-    let Ok(response) = &mut response.text().await else {
-        todo!()
-    };
+    if iris {
+        let Ok(response) = &mut response.text().await else {
+            todo!()
+        };
+    
+        let mut json: Value = serde_json::from_str(&response).unwrap();
+    
+        let args = json
+            .as_object_mut()
+            .unwrap()
+            .get_mut("arguments")
+            .unwrap()
+            .as_object_mut()
+            .unwrap();
+            
+        args.insert(
+            "jvm".to_string(),
+            json!([
+                "-Dloader.modsDir=iris-reserved/1.19.3",
+                "-Diris.installer=true"
+            ]),
+        );
+
+        response = &mut serde_json::to_string(&json).unwrap();
+    }
 
     if io::copy(&mut response.as_bytes(), &mut file).is_err() {
         todo!()

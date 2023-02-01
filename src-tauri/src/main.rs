@@ -6,23 +6,30 @@
 mod structs;
 
 use std::{
-    fs::{create_dir, File},
-    io::Write,
+    collections::HashMap,
+    fs::{self, create_dir, read_dir, File},
+    io::{self, Seek, Write},
     path::{Path, PathBuf},
 };
 
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 use structs::{Meta, ModrinthApi, Version};
 use tauri::{Manager, State};
 use window_shadows::set_shadow;
 
 struct AppState {
     client: reqwest::Client,
+    mc_dir: PathBuf,
 }
 
 impl AppState {
     fn new() -> Self {
         let client = reqwest::Client::new();
-        Self { client }
+        let mc_dir = get_default_client_dir();
+        Self { client, mc_dir }
     }
 }
 
@@ -85,9 +92,9 @@ fn get_default_client_dir() -> PathBuf {
         .join("minecraft");
 }
 
-fn get_mod_dir(mc_dir: PathBuf, iris: bool) -> Result<PathBuf, ()> {
+fn get_mod_dir(mc_dir: &Path, iris: bool, version: &String) -> Result<PathBuf, ()> {
     let mod_dir = if iris {
-        mc_dir.join("iris-reservec")
+        mc_dir.join("iris-reservec").join(version)
     } else {
         mc_dir.join("mods")
     };
@@ -102,9 +109,14 @@ fn get_mod_dir(mc_dir: PathBuf, iris: bool) -> Result<PathBuf, ()> {
 }
 
 #[tauri::command]
-async fn download_mods(iris: bool, state: State<'_, AppState>, version: Version) -> Result<(), ()> {
-    let mc_dir = get_default_client_dir();
-    let mod_dir = get_mod_dir(mc_dir, iris)?;
+async fn download_mods(
+    iris: bool,
+    state: State<'_, AppState>,
+    version: Version,
+    generate_profile: bool,
+    quilt: bool,
+) -> Result<(), ()> {
+    let mod_dir = get_mod_dir(&state.mc_dir, iris, &version.name)?;
     let req = state
         .client
         .get("https://api.modrinth.com/v2/project/iris/version")
@@ -140,6 +152,16 @@ async fn download_mods(iris: bool, state: State<'_, AppState>, version: Version)
                                     &mod_dir,
                                 )
                                 .await?;
+
+                                download_quilt(
+                                    &state.client,
+                                    quilt,
+                                    version,
+                                    generate_profile,
+                                    &state.mc_dir,
+                                )
+                                .await?;
+
                                 Ok(())
                             }
                             Err(_err) => todo!(),
@@ -172,13 +194,178 @@ async fn jar_writer(
             };
             println!("{:?}", mod_dir.join(details.files[0].filename.clone()));
             let Ok(mut file) = File::create(mod_dir.join(details.files[0].filename.clone())) else {
+                // cannot make jar
                 todo!()
             };
             let Ok(_) = file.write(&buf) else {
+                // cannot write to just made jar??
                 todo!()
             };
             break;
         }
     }
+    let Ok(jars) = read_dir(mod_dir) else {
+        todo!("Cannot Access Folder")
+    };
+    for jar in jars {
+        match jar {
+            Ok(jar) => {
+                let name = jar.file_name().into_string().unwrap();
+                if name.contains("iris") || name.contains("sodium") {
+                    let Ok(_) = fs::remove_file(jar.path()) else {
+                        todo!()
+                    };
+                }
+            }
+            Err(_) => todo!(),
+        }
+    }
     Ok(())
+}
+
+async fn get_quilt_version(client: &reqwest::Client) -> Result<String, ()> {
+    let req = client
+        .get("https://github.com/IrisShaders/Iris-Installer-Maven/blob/master/latest-loader-quilt")
+        .send()
+        .await;
+    match req {
+        Ok(res) => {
+            let version = res.text().await;
+            match version {
+                Ok(version) => Ok(version),
+                Err(_) => todo!(),
+            }
+        }
+        Err(_) => todo!(),
+    }
+}
+
+async fn download_quilt(
+    client: &reqwest::Client,
+    iris: bool,
+    version: Version,
+    generate_profile: bool,
+    mc_dir: &Path,
+) -> Result<(), ()> {
+    let loader_version = get_quilt_version(client).await?;
+
+    if mc_dir.join("launcher_profiles.json").exists() {
+        todo!()
+    }
+
+    let profile_name = if iris {
+        todo!()
+    } else {
+        format!("quilt-loader-{}-{}", loader_version, version.name)
+    };
+
+    let profile_dir = mc_dir.join("versions").join(&profile_name);
+
+    if profile_dir.exists() {
+        if fs::remove_dir_all(&profile_dir).is_err() {
+            todo!()
+        };
+
+        todo!()
+    }
+
+    if fs::create_dir_all(&profile_dir).is_err() {};
+
+    if File::create(profile_dir.join(profile_name.clone() + ".jar")).is_err() {
+        todo!()
+    };
+
+    let Ok(mut file) = File::create(profile_dir.join(profile_name.clone() + ".json")) else {
+        todo!()
+    };
+
+    let Ok(response) = client.get(format!(
+        "https://meta.quiltmc.org/v3/versions/loader/{}/{}/profile/json",
+        &version.name, &loader_version
+    )).send().await else {
+        todo!()
+    };
+
+    let Ok(response) = &mut response.text().await else {
+        todo!()
+    };
+
+    if io::copy(&mut response.as_bytes(), &mut file).is_err() {
+        todo!()
+    };
+
+    if generate_profile {
+        let Ok(mut file) = fs::OpenOptions::new().read(true).write(true).open(
+            mc_dir
+                .join("launcher_profiles")
+                .with_extension("json"),
+        ) else {
+            todo!()
+        };
+
+        let Ok(mut launcher_profiles): Result<LauncherProfiles, serde_json::Error> = serde_json::from_reader(&file) else {
+            todo!()
+        };
+        if file.set_len(0).is_err() {
+            todo!()
+        };
+        if file.rewind().is_err() {
+            todo!()
+        };
+
+        launcher_profiles.profiles.insert(
+            profile_name.clone(),
+            Profile {
+                name: if iris {
+                    format!("Iris {}", &version.name)
+                } else {
+                    format!("Quilt Loader {}", &version.name)
+                },
+                profile_type: "custom".into(),
+                created: Utc::now(),
+                last_version_id: profile_name,
+                icon: format!("data:image/png;base64,{}", BASE64.encode(get_icon(iris))),
+                other: Map::new(),
+            },
+        );
+
+        if serde_json::to_writer_pretty(file, &launcher_profiles).is_err() {
+            todo!()
+        };
+    }
+
+    Ok(())
+}
+
+const QUILT_ICON: &[u8] = include_bytes!("quilt.png");
+
+const IRIS_ICON: &[u8] = include_bytes!("iris.png");
+
+fn get_icon(iris: bool) -> &'static [u8] {
+    if iris {
+        IRIS_ICON
+    } else {
+        QUILT_ICON
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LauncherProfiles {
+    profiles: HashMap<String, Profile>,
+    #[serde(flatten)]
+    other: Map<String, Value>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Profile {
+    name: String,
+    #[serde(rename = "type")]
+    profile_type: String,
+    created: DateTime<Utc>,
+    last_version_id: String,
+    icon: String,
+    #[serde(flatten)]
+    other: Map<String, Value>,
 }

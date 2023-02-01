@@ -286,11 +286,11 @@ async fn download_quilt(
         todo!()
     };
 
+    let Ok(mut response) = response.text().await else {
+        todo!()
+    };
+
     if iris {
-        let Ok(response) = &mut response.text().await else {
-            todo!()
-        };
-    
         let mut json: Value = serde_json::from_str(&response).unwrap();
     
         let args = json
@@ -309,7 +309,7 @@ async fn download_quilt(
             ]),
         );
 
-        response = &mut serde_json::to_string(&json).unwrap();
+        response = serde_json::to_string(&json).unwrap();
     }
 
     if io::copy(&mut response.as_bytes(), &mut file).is_err() {

@@ -1,4 +1,6 @@
-import { createSignal, Suspense, useTransition } from "solid-js"
+import { invoke } from "@tauri-apps/api"
+import { createResource, createSignal, Suspense } from "solid-js"
+import { appWindow } from "@tauri-apps/api/window"
 
 export default function App() {
 	const themes: { bg: string; color: string }[] = [
@@ -46,6 +48,9 @@ export default function App() {
 		}
 	]
 	const [theme, setTheme] = createSignal(themes[0])
+	const [versions] = createResource<{ name: string; id: string }[]>(
+		async () => invoke("get_iris_versions")
+	)
 
 	let i = 0
 	setInterval(() => {
@@ -69,12 +74,27 @@ export default function App() {
 				{/* Titlebar */}
 				<div
 					data-tauri-drag-region
-					class="backdrop-brightness-105 hover:backdrop-brightness-[1.15] fixed z-50 grid w-full h-6 duration-500">
+					class="backdrop-brightness-105 hover:backdrop-brightness-[1.15] fixed z-50 grid w-full duration-500">
 					<p
 						data-tauri-drag-region
-						class="text-white/80 self-center text-xs text-center">
+						class="text-white self-center text-xs text-center my-1.5">
 						Iris Installer v0.0.0
 					</p>
+					<button
+						class="fixed top-1.5 right-1.5"
+						onClick={() => appWindow.close()}>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 24 24"
+							fill="currentColor"
+							class="w-4 h-4 text-white">
+							<path
+								fill-rule="evenodd"
+								d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 01-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z"
+								clip-rule="evenodd"
+							/>
+						</svg>
+					</button>
 				</div>
 				{/* Main content container */}
 				<div class="backdrop-blur-sm bg-gradient-to-t from-zinc-800 via-zinc-800/70 to-transparent grid h-full grid-cols-1 px-12 py-16">
@@ -87,8 +107,8 @@ export default function App() {
 							/>
 							Install Iris
 						</header>
-						<p class="text-center leading-snug">
-							Welcome to the Iris Installer, this program will
+						<p class="leading-snug text-center">
+							Welcome to the Iris Installer. This program will
 							allow you to get up and running with next-gen
 							Minecraft shaders in minutes. Unless you know what
 							you're doing, all you need to do is click install.
@@ -96,30 +116,41 @@ export default function App() {
 					</div>
 					<div class="gap-y-2 w-fit flex flex-col self-center mx-auto">
 						<p>Install Iris and Sodium</p>
-						<p>Always check for new versions of the mod</p>
 						<p>Automatically detect game directory</p>
 						<p>Use Qulit instead of Fabric</p>
+						<p>Show snapshot releases</p>
 					</div>
 					<div class="self-end space-y-2">
-						<button class="hover:brightness-125 border-zinc-500 text-zinc-400 w-full py-1.5 font-semibold duration-500 border-2 rounded">
-							Iris & Sodium for 1.19.3
-						</button>
-						<button
-							class="hover:brightness-125 text-zinc-800 w-full py-1.5 font-semibold duration-500 rounded"
-							style={{ "background-color": theme().color }}>
-							Install
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								viewBox="0 0 20 20"
-								fill="currentColor"
-								class="inline w-4 h-4 align-text-bottom">
-								<path
-									fill-rule="evenodd"
-									d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z"
-									clip-rule="evenodd"
-								/>
-							</svg>
-						</button>
+						<select
+							id="versionSelect"
+							disabled={versions.loading}
+							class="disabled:opacity-30 bg-transparent text-center appearance-none hover:brightness-125 border-zinc-500 text-zinc-400 w-full py-1.5 font-semibold duration-500 border-2 rounded">
+							<Suspense fallback={<option>Loading...</option>}>
+								{versions()?.map((i) => (
+									<option value={i.id}>{i.name}</option>
+								))}
+							</Suspense>
+						</select>
+						<a class="block">
+							<button
+								class="hover:brightness-125 text-zinc-800 w-full py-1.5 font-semibold duration-500 rounded disabled:opacity-30"
+								style={{ "background-color": theme().color }}
+								onClick={() => console.log(versions())}
+								disabled={versions.loading}>
+								Install
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									viewBox="0 0 20 20"
+									fill="currentColor"
+									class="inline w-4 h-4 align-text-bottom">
+									<path
+										fill-rule="evenodd"
+										d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z"
+										clip-rule="evenodd"
+									/>
+								</svg>
+							</button>
+						</a>
 						{/* Links section */}
 						<div class="flex justify-center gap-6">
 							{links.map((i) => (

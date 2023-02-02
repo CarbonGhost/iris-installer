@@ -111,7 +111,6 @@ async fn download_mods(
     state: State<'_, AppState>,
     version: Version,
     generate_profile: bool,
-    quilt: bool,
 ) -> Result<(), ()> {
     let mod_dir = get_mod_dir(&state.mc_dir, iris, &version.name)?;
     let req = state
@@ -121,7 +120,7 @@ async fn download_mods(
         .await;
     match req {
         Ok(res) => {
-            let iris = res.json().await;
+            let iris_jar = res.json().await;
             let req = state
                 .client
                 .get("https://api.modrinth.com/v2/project/sodium/version")
@@ -130,8 +129,8 @@ async fn download_mods(
             match req {
                 Ok(res) => {
                     let sodium = res.json().await;
-                    match iris {
-                        Ok(iris) => match sodium {
+                    match iris_jar {
+                        Ok(iris_jar) => match sodium {
                             Ok(sodium) => {
                                 jar_writer(
                                     sodium,
@@ -142,7 +141,7 @@ async fn download_mods(
                                 )
                                 .await?;
                                 jar_writer(
-                                    iris,
+                                    iris_jar,
                                     &version.name,
                                     &version.iris_version,
                                     &state.client,
@@ -152,7 +151,7 @@ async fn download_mods(
 
                                 download_quilt(
                                     &state.client,
-                                    quilt,
+                                    iris,
                                     version,
                                     generate_profile,
                                     &state.mc_dir,
@@ -183,7 +182,7 @@ async fn jar_writer(
     let Ok(jars) = read_dir(mod_dir) else {
         todo!("Cannot Access Folder")
     };
-    
+
     for jar in jars {
         match jar {
             Ok(jar) => {

@@ -3,18 +3,18 @@
     windows_subsystem = "windows"
 )]
 
-mod structs;
 mod quilt;
+mod structs;
 
 use std::{
     fs::{self, create_dir, read_dir, File},
     io::Write,
     path::{Path, PathBuf},
 };
-
 use structs::{Meta, ModrinthApi, Version};
 use tauri::{Manager, State};
 use window_shadows::set_shadow;
+
 use crate::quilt::download_quilt;
 
 struct AppState {
@@ -36,6 +36,7 @@ fn main() {
         .setup(|app| {
             let window = app.get_window("main").unwrap();
             set_shadow(&window, true).expect("Unsupported platform!");
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -49,19 +50,21 @@ fn main() {
 
 #[tauri::command]
 async fn fetch_meta(state: State<'_, AppState>) -> Result<Meta, ()> {
-    let meta = state.client.get("https://raw.githubusercontent.com/IrisShaders/Iris-Installer-Files/master/meta-new.json").send().await;
+    let meta = state.client.get("https://gist.githubusercontent.com/CarbonGhost/43899577b696150ad1deee2414967fb8/raw/0bcc88b5ef64d0fccfb6eb7e601ed710578dd5fc/meta.json").send().await;
+
     match meta {
         Ok(res) => match res.json().await {
             Ok(json) => Ok(json),
-            Err(_) => todo!(),
+            Err(_) => todo!("JSON serialization error"),
         },
-        Err(_) => todo!(),
+        Err(_) => todo!("Networking error"),
     }
 }
 
 #[tauri::command]
 async fn versions(outdated: bool, snapshot: bool, meta: Meta) -> Result<Vec<Version>, ()> {
     let mut versions = Vec::new();
+
     for version in meta.versions {
         if snapshot == version.snapshot || outdated == version.outdated {
             versions.push(version.clone());
@@ -69,6 +72,7 @@ async fn versions(outdated: bool, snapshot: bool, meta: Meta) -> Result<Vec<Vers
             versions.push(version.clone())
         }
     }
+
     Ok(versions)
 }
 
@@ -80,8 +84,10 @@ const HOMEDIR: &str = "HOME";
 
 fn get_default_client_dir() -> PathBuf {
     let base_dir = PathBuf::from(std::env::var(HOMEDIR).unwrap());
+
     #[cfg(any(target_os = "windows", target_os = "linux"))]
     return base_dir.join(".minecraft");
+
     #[cfg(target_os = "macos")]
     return base_dir
         .join("Library")
@@ -95,6 +101,7 @@ fn get_mod_dir(mc_dir: &Path, iris: bool, version: &String) -> Result<PathBuf, (
     } else {
         mc_dir.join("mods")
     };
+
     if mod_dir.exists() {
         Ok(mod_dir)
     } else {
@@ -118,6 +125,7 @@ async fn download_mods(
         .get("https://api.modrinth.com/v2/project/iris/version")
         .send()
         .await;
+
     match req {
         Ok(res) => {
             let iris_jar = res.json().await;
@@ -218,6 +226,6 @@ async fn jar_writer(
             break;
         }
     }
+
     Ok(())
 }
-

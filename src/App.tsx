@@ -3,6 +3,8 @@ import { createResource, createSignal, Suspense } from "solid-js"
 import ArrowRight from "./components/icons/ArrowRight"
 import Titlebar from "./components/Titlebar"
 import ExternalLink from "./components/ExternalLink"
+import { Meta, Version } from "./types"
+import { invoke } from "@tauri-apps/api"
 
 export default function App() {
 	const themes: { bg: string; color: string }[] = [
@@ -50,12 +52,14 @@ export default function App() {
 		}
 	]
 	const [theme, setTheme] = createSignal(themes[0])
-	// TODO: Placeholder, this will return an object containing available versions of Iris.
-	const [versions] = createResource<{ name: string }[]>(async () => [
-		{ name: "Iris 1.6 for Minecraft 2.0" },
-		{ name: "Iris 1.6 for Minecraft 1.20" },
-		{ name: "Iris 1.5.6 for Minecraft 1.19.5" }
-	])
+	const [versions, { mutate, refetch }] = createResource<Version[]>(
+		async () =>
+			invoke("versions", {
+				outdated: false,
+				snapshot: false,
+				meta: await invoke("fetch_meta")
+			})
+	)
 
 	let i = 0
 	setInterval(() => {
@@ -84,7 +88,7 @@ export default function App() {
 						<header class="text-5xl font-bold text-center text-gray-100">
 							<img
 								class="inline w-12 h-12 mr-2 align-bottom"
-								src="../app-icon.png"
+								src="../src-tauri/icons/Square310x310Logo.png"
 							/>
 							Install Iris
 						</header>
@@ -115,7 +119,8 @@ export default function App() {
 						<button
 							class="hover:brightness-125 text-zinc-800 w-full py-1.5 font-semibold duration-500 rounded disabled:opacity-30"
 							style={{ "background-color": theme().color }}
-							disabled={versions.loading}>
+							disabled={versions.loading}
+							onClick={() => console.log(versions())}>
 							Install
 							<ArrowRight />
 						</button>

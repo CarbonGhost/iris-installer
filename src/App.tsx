@@ -1,9 +1,10 @@
 import { createResource, createSignal, Suspense } from "solid-js"
+import { createStore } from "solid-js/store"
 
 import ArrowRight from "./components/icons/ArrowRight"
 import Titlebar from "./components/Titlebar"
 import ExternalLink from "./components/ExternalLink"
-import { Meta, Version } from "./types"
+import { Version } from "./types"
 import { invoke } from "@tauri-apps/api"
 
 export default function App() {
@@ -52,14 +53,18 @@ export default function App() {
 		}
 	]
 	const [theme, setTheme] = createSignal(themes[0])
-	const [versions, { mutate, refetch }] = createResource<Version[]>(
-		async () =>
-			invoke("versions", {
-				outdated: false,
-				snapshot: false,
-				meta: await invoke("fetch_meta")
-			})
+	const [versions] = createResource<Version[]>(async () =>
+		invoke("versions", {
+			outdated: false,
+			snapshot: false,
+			meta: await invoke("fetch_meta")
+		})
 	)
+	const [installConfig, setInstallConfig] = createStore<{
+		iris: boolean
+		version: Version | undefined
+		generate_profile: boolean
+	}>({ iris: false, version: versions()?.[0], generate_profile: true })
 
 	let i = 0
 	setInterval(() => {
@@ -103,16 +108,26 @@ export default function App() {
 						<p>Install Iris and Sodium</p>
 						<p>Always check for new versions of the mod</p>
 						<p>Automatically detect game directory</p>
-						<p>Use Qulit instead of Fabric</p>
 					</div>
 					<div class="self-end space-y-2">
 						<select
 							id="versionSelect"
+							name="versionSelect"
 							disabled={versions.loading}
-							class="disabled:opacity-30 bg-transparent text-center appearance-none hover:brightness-125 border-zinc-500 text-zinc-400 w-full py-1.5 font-semibold duration-500 border-2 rounded">
+							class="disabled:opacity-30 bg-transparent text-center appearance-none hover:brightness-125 border-zinc-500 text-zinc-400 w-full py-1.5 font-semibold duration-500 border-2 rounded"
+							onClick={(e) => {
+								const option = (e.target as HTMLInputElement)
+									.value
+								const version = versions()?.find(
+									(i) => option == i.irisVersion
+								)
+								setInstallConfig({ version: version })
+							}}>
 							<Suspense fallback={<option>Loading...</option>}>
 								{versions()?.map((i) => (
-									<option value={i.name}>{i.name}</option>
+									<option value={i.irisVersion}>
+										{i.name}
+									</option>
 								))}
 							</Suspense>
 						</select>
@@ -120,7 +135,12 @@ export default function App() {
 							class="hover:brightness-125 text-zinc-800 w-full py-1.5 font-semibold duration-500 rounded disabled:opacity-30"
 							style={{ "background-color": theme().color }}
 							disabled={versions.loading}
-							onClick={() => console.log(versions())}>
+							onClick={() => {
+								invoke("download_mods", installConfig)
+								
+								console.log("installing with:")
+								console.log(installConfig)
+							}}>
 							Install
 							<ArrowRight />
 						</button>

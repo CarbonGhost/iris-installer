@@ -7,7 +7,7 @@ mod quilt;
 mod structs;
 
 use std::{
-    fs::{self, create_dir, read_dir, File},
+    fs::{self, create_dir, create_dir_all, read_dir, File},
     io::Write,
     path::{Path, PathBuf},
 };
@@ -105,7 +105,7 @@ fn get_mod_dir(mc_dir: &Path, iris: bool, version: &String) -> Result<PathBuf, (
     if mod_dir.exists() {
         Ok(mod_dir)
     } else {
-        match create_dir(mod_dir.clone()) {
+        match create_dir_all(mod_dir.clone()) {
             Ok(_) => Ok(mod_dir),
             Err(err) => panic!("{}", err),
         }

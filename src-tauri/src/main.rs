@@ -7,12 +7,13 @@ mod quilt;
 mod structs;
 
 use std::{
-    fs::{self, create_dir, create_dir_all, read_dir, File},
+    fs::{self, create_dir_all, read_dir, File},
     io::Write,
     path::{Path, PathBuf},
 };
+use futures_util::StreamExt;
 use structs::{Meta, ModrinthApi, Version};
-use tauri::{Manager, State};
+use tauri::{Manager, State, Window};
 use window_shadows::set_shadow;
 
 use crate::quilt::download_quilt;
@@ -115,6 +116,7 @@ fn get_mod_dir(mc_dir: &Path, iris: bool, version: &String) -> Result<PathBuf, (
 #[tauri::command]
 async fn download_mods(
     iris: bool,
+    window: Window,
     state: State<'_, AppState>,
     version: Version,
     generate_profile: bool,
@@ -146,6 +148,7 @@ async fn download_mods(
                                     &version.sodium_version,
                                     &state.client,
                                     &mod_dir,
+                                    &window,
                                 )
                                 .await?;
                                 jar_writer(
@@ -154,6 +157,7 @@ async fn download_mods(
                                     &version.iris_version,
                                     &state.client,
                                     &mod_dir,
+                                    &window,
                                 )
                                 .await?;
 
@@ -186,6 +190,7 @@ async fn jar_writer(
     mod_version: &String,
     client: &reqwest::Client,
     mod_dir: &Path,
+    window: &Window,
 ) -> Result<(), ()> {
     let Ok(jars) = read_dir(mod_dir) else {
         todo!("Cannot Access Folder")
@@ -211,18 +216,26 @@ async fn jar_writer(
             let Ok(req) = client.get(url).send().await else {
                 todo!()
             };
-            let Ok(buf) = req.bytes().await else {
-                todo!()
-            };
-            println!("{:?}", mod_dir.join(details.files[0].filename.clone()));
             let Ok(mut file) = File::create(mod_dir.join(details.files[0].filename.clone())) else {
-                // cannot make jar
+                todo!("Cannot Make File")
+            };
+            let Some(total_size) = req.content_length() else {
                 todo!()
             };
-            let Ok(_) = file.write(&buf) else {
-                // cannot write to just made jar??
-                todo!()
-            };
+            let mut downloaded: u64 = 0;
+            let mut stream = req.bytes_stream();
+
+            while let Some(item) = stream.next().await {
+                let Ok(buf) = item else {
+                    todo!()
+                };
+                if file.write_all(&buf).is_err() {
+                    todo!()
+                }
+
+                downloaded = (downloaded + buf.len() as u64) / total_size;
+                window.emit("download-progress", downloaded / 2);
+            }
             break;
         }
     }

@@ -1,4 +1,10 @@
-import { createResource, createSignal, Suspense } from "solid-js"
+import {
+	createRenderEffect,
+	createResource,
+	createSignal,
+	JSXElement,
+	Suspense
+} from "solid-js"
 import { createStore } from "solid-js/store"
 
 import ArrowRight from "./components/icons/ArrowRight"
@@ -6,6 +12,7 @@ import Titlebar from "./components/Titlebar"
 import ExternalLink from "./components/ExternalLink"
 import { Version } from "./types"
 import { invoke } from "@tauri-apps/api"
+import { listen } from "@tauri-apps/api/event"
 
 export default function App() {
 	const themes: { bg: string; color: string }[] = [
@@ -63,8 +70,13 @@ export default function App() {
 	const [installConfig, setInstallConfig] = createStore<{
 		iris: boolean
 		version: Version | undefined
-		generate_profile: boolean
-	}>({ iris: false, version: versions()?.[0], generate_profile: true })
+		generateProfile: true
+	}>({ iris: true, version: versions()?.[0], generateProfile: true })
+
+	let versionSelect: any
+	let irisSodiumCheck: any
+	let generateProfileCheck: any
+	let customDirectoryCheck: any
 
 	let i = 0
 	setInterval(() => {
@@ -105,27 +117,51 @@ export default function App() {
 						</p>
 					</div>
 					<div class="gap-y-2 w-fit flex flex-col self-center mx-auto">
-						<p>Install Iris and Sodium</p>
-						<p>Always check for new versions of the mod</p>
-						<p>Automatically detect game directory</p>
+						<label>
+							<input
+								class="bg-zinc-800 border-zinc-700 checked:bg-zinc-400 w-4 h-4 mr-2 align-middle duration-100 border rounded-full appearance-none"
+								ref={irisSodiumCheck as HTMLInputElement}
+								checked={installConfig.iris}
+								type="checkbox"
+							/>
+							Install Iris and Sodium
+						</label>
+						<label>
+							<input
+								class="bg-zinc-800 border-zinc-700 checked:bg-zinc-400 w-4 h-4 mr-2 align-middle duration-100 border rounded-full appearance-none"
+								ref={generateProfileCheck as HTMLInputElement}
+								checked={installConfig.generateProfile}
+								type="checkbox"
+							/>
+							Generate a new profile with Quilt
+						</label>
+						<label>
+							<input
+								class="bg-zinc-800 border-zinc-700 checked:bg-zinc-400 w-4 h-4 mr-2 align-middle duration-100 border rounded-full appearance-none"
+								ref={customDirectoryCheck as HTMLInputElement}
+								type="checkbox"
+							/>
+							Use custom install directory{" "}
+							<a
+								class="hover:underline hover:brightness-125 font-semibold duration-500"
+								style={{ color: theme().color }}
+								href="#">
+								C:/temp/placeholder
+							</a>
+						</label>
 					</div>
 					<div class="self-end space-y-2">
 						<select
 							id="versionSelect"
 							name="versionSelect"
 							disabled={versions.loading}
-							class="disabled:opacity-30 bg-transparent text-center appearance-none hover:brightness-125 border-zinc-500 text-zinc-400 w-full py-1.5 font-semibold duration-500 border-2 rounded"
-							onClick={(e) => {
-								const option = (e.target as HTMLInputElement)
-									.value
-								const version = versions()?.find(
-									(i) => option == i.irisVersion
-								)
-								setInstallConfig({ version: version })
-							}}>
+							class="focus:border-zinc-400 focus:outline-none disabled:opacity-30 bg-transparent text-center appearance-none hover:brightness-125 border-zinc-500 text-zinc-400 focus:text-zinc-300 w-full py-1.5 font-semibold duration-500 border-2 rounded"
+							ref={versionSelect}>
 							<Suspense fallback={<option>Loading...</option>}>
 								{versions()?.map((i) => (
-									<option value={i.irisVersion}>
+									<option
+										class="bg-zinc-800 text-zinc-200"
+										value={i.irisVersion}>
 										{i.name}
 									</option>
 								))}
@@ -136,10 +172,14 @@ export default function App() {
 							style={{ "background-color": theme().color }}
 							disabled={versions.loading}
 							onClick={() => {
+								let option = (versionSelect as HTMLInputElement)
+									.value
+								const version = versions()?.find(
+									(i) => option == i.irisVersion
+								)
+								setInstallConfig({ version: version })
+
 								invoke("download_mods", installConfig)
-								
-								console.log("installing with:")
-								console.log(installConfig)
 							}}>
 							Install
 							<ArrowRight />

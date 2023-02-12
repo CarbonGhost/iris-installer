@@ -6,12 +6,12 @@
 mod quilt;
 mod structs;
 
+use futures_util::StreamExt;
 use std::{
     fs::{self, create_dir_all, read_dir, File},
     io::Write,
     path::{Path, PathBuf},
 };
-use futures_util::StreamExt;
 use structs::{Meta, ModrinthApi, Version};
 use tauri::{Manager, State, Window};
 use window_shadows::set_shadow;
@@ -32,6 +32,8 @@ impl AppState {
 }
 
 fn main() {
+    println!("MC dir is {:#?}", get_default_client_dir());
+
     tauri::Builder::default()
         .manage(AppState::new())
         .setup(|app| {
@@ -235,6 +237,8 @@ async fn jar_writer(
 
                 downloaded = (downloaded + buf.len() as u64) / total_size;
                 window.emit("download-progress", downloaded / 2);
+
+                println!("{downloaded}");
             }
             break;
         }

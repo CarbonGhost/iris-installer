@@ -39,7 +39,7 @@ pub async fn download_quilt(
     let loader_version = get_quilt_version(client).await?;
 
     if mc_dir.join("launcher_profiles.json").exists() {
-        todo!()
+        todo!("launcher_profiles.json could not be found")
     }
 
     let profile_name = if iris {
@@ -81,7 +81,7 @@ pub async fn download_quilt(
 
     if iris {
         let mut json: Value = serde_json::from_str(&response).unwrap();
-    
+
         let args = json
             .as_object_mut()
             .unwrap()
@@ -89,7 +89,7 @@ pub async fn download_quilt(
             .unwrap()
             .as_object_mut()
             .unwrap();
-            
+
         args.insert(
             "jvm".to_string(),
             json!([
